@@ -1,77 +1,97 @@
-const express = require('express');
-const users = require('./MOCK_DATA.json');
-const fs = require('fs');
-const app = express();
-const port = 3000;
+const express = require("express");
+const mongoose = require('mongoose');
 
+const app = express();
+const PORT = 8000;
+
+// Connection
+mongoose.connect('mongodb://127.0.0.1:27017/learning')
+.then(() => console.log("MongoDB Connected"))
+.catch((err) => console.log("Mongo Error", err));
+
+// Schema
+const userSchema = new mongoose.Schema({
+    firstName: {
+        type: String,
+        required: true,
+    },
+    lastName: {
+        type: String,
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+    },
+    gender: {                // ✅ Added missing gender field
+        type: String,
+    },
+    jobTitle: {
+        type: String,
+    }
+}, { timestamps: true });
+
+// Model
+const User = mongoose.model('user', userSchema);
+
+// Middlewares
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json()); // ✅ Added to handle JSON POST body
+
+// Handle favicon request (optional but removes 404 noise)
+app.get('/favicon.ico', (req, res) => res.status(204));
 
 // Routes
-
-app.get('/api/users', (req, res) => {
-  return res.json(users);
+app.get('/users', async (req, res) => {
+    const allDbUsers = await User.find({});
+    const html = `
+    <ul>
+    ${allDbUsers.map(user => `<li>${user.firstName} - ${user.email}</li>`).join("")}
+    </ul>
+    `;
+    res.send(html);
 });
 
-app.get("/users", (req, res) => {
-  const html = `
-  <ul>
-  ${users.map(user => `<li>${user.first_name} ${user.last_name}</li>`).join('')}
-  </ul>
-  `;
-
-  return res.send(html);
+// REST API
+app.get('/api/users', async (req, res) => {
+    const allDbUsers = await User.find({});
+    return res.json(allDbUsers);
 });
-
-//Dynamic path parameter
-
-// app.get('/api/users/:id', (req, res) => {
-//   const id = Number(req.params.id);
-//   const user = users.find(user => user.id === id);
-//   return res.json(user);
-// });
-
-
-// app.post('/api/users', (req, res) => {
-//   return res.json({status : "pending"});
-// });
-
-app.use(express.urlencoded({ extended: false })); //Middleware to parse URL-encoded bodies
 
 app.route('/api/users/:id')
-  .get((req, res) => {
-    const id = Number(req.params.id);
-  const user = users.find(user => user.id === id);
-  return res.json(user);
-}).patch((req, res) => { //Edit user with id
-  return res.json({status : "pending"});
- }).put((req, res) => {// update user with id
-  return res.json({status : "pending"});
- }).
- delete((req, res) => {// delete user with id
-  return res.json({status : "success"});
- });
+.get(async (req, res) => {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User Not found' }); // ✅ Fixed: req.status -> res.status
+    return res.json(user);
+})
+.patch(async (req, res) => {
+    await User.findByIdAndUpdate(req.params.id, { lastName: "Changed" });
+    return res.json({ status: "Success" });
+})
+.delete(async (req, res) => {
+    await User.findByIdAndDelete(req.params.id);
+    return res.json({ status: "Success" });
+});
 
+app.post('/api/users', async (req, res) => {
+    const body = req.body;
+    if (!body || !body.first_name || !body.last_name || !body.email || !body.gender || !body.job_title) {
+        return res.status(400).json({ msg: 'All fields are required' });
+    }
 
-app.post("/api/users", (req, res) => {
+    const result = await User.create({
+        firstName: body.first_name,
+        lastName: body.last_name,
+        email: body.email,
+        gender: body.gender,
+        jobTitle: body.job_title
+    });
 
-  const body = req.body;
-  users.push({...body, id: users.length + 1});
-  fs.writeFile('./MOCK_DATA.json', JSON.stringify(users), (err,data) =>{
- return res.json({status : "success",id: users.length+1});
-  }
-  );
-}
-);
+    console.log("result", result);
 
+    return res.status(201).json({ msg: "Success" });
+});
 
-
-
-
-
-
-
-
-
-
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+app.listen(PORT, () => {
+    console.log(`Server started at Port ${PORT}`);
 });

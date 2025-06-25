@@ -6,3 +6,8 @@ GET /users/1 = Get user with id 1
 POST/users - create new user
 
 PATCH/users/1 - Edit the user with id 1.
+
+
+Schema - Define the structure
+ Schema - Model
+ Using model we do CRUD Operations
